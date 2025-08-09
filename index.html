@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📈 Live Stocks with Graph</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: #000;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 { margin-bottom: 20px; }
+    #searchBar { margin-bottom: 20px; }
+    input, button {
+      padding: 8px;
+      font-size: 1rem;
+      margin: 5px;
+    }
+    .stock-card {
+      background: #111;
+      padding: 15px;
+      margin: 20px auto;
+      max-width: 800px;
+      border-radius: 8px;
+      text-align: left;
+      box-shadow: 0 0 10px rgba(0,255,0,0.2);
+    }
+    .profit {
+      color: limegreen;
+      font-weight: bold;
+    }
+    .loss {
+      color: red;
+      font-weight: bold;
+    }
+    canvas {
+      margin-top: 20px;
+      background: #111;
+      border-radius: 8px;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📈 Live Stocks with Graph</h1>
+  <div id="searchBar">
+    <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g. AAPL)" />
+    <button onclick="startFetching()">Search</button>
+  </div>
+
+  <div id="stockInfo"></div>
+  <canvas id="stockChart" width="800" height="400"></canvas>
+
+  <script>
+    let chart;
+    let refreshInterval;
+
+    function startFetching() {
+      const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+      if (!symbol) return;
+
+      clearInterval(refreshInterval); // stop any previous loop
+      fetchStock(symbol);
+      refreshInterval = setInterval(() => fetchStock(symbol), 15000); // refresh every 15 seconds
+    }
+
+    async function fetchStock(symbol) {
+      try {
+        const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1mo`);
+        const data = await res.json();
+
+        const chartData = data.chart.result[0];
+        const timestamps = chartData.timestamp.map(ts => new Date(ts * 1000).toLocaleDateString());
+        const prices = chartData.indicators.quote[0].close;
+        
+        const latestPrice = prices[prices.length - 1];
+        const prevPrice = prices[prices.length - 2];
+        const change = latestPrice - prevPrice;
+        const changePercent = ((change / prevPrice) * 100).toFixed(2);
+
+        document.getElementById('stockInfo').innerHTML = `
+          <div class="stock-card">
+            <h2>${symbol}</h2>
+            <p>Price: $${latestPrice.toFixed(2)}</p>
+            <p class="${change >= 0 ? 'profit' : 'loss'}">
+              ${change >= 0 ? '▲' : '▼'} ${change.toFixed(2)} (${changePercent}%)
+            </p>
+          </div>
+        `;
+
+        if (chart) chart.destroy();
+        const ctx = document.getElementById('stockChart').getContext('2d');
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: timestamps,
+            datasets: [{
+              label: `${symbol} Price`,
+              data: prices,
+              borderColor: 'limegreen',
+              backgroundColor: 'rgba(0,255,0,0.1)',
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: 'white' } } },
+            scales: {
+              x: { ticks: { color: 'white' } },
+              y: { ticks: { color: 'white' } }
+            }
+          }
+        });
+
+      } catch (error) {
+        document.getElementById('stockInfo').innerHTML = `<p class="loss">Error fetching stock data.</p>`;
+        console.error(error);
+      }
+    }
+  </script>
+</body>
+</html>
